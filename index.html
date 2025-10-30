@@ -240,18 +240,25 @@
             }
 
             try {
-                // Solicita conexão com a carteira
+                // Solicita conexão com a carteira (na rede que estiver ativa)
                 ethersProvider = new ethers.BrowserProvider(window.ethereum);
                 signer = await ethersProvider.getSigner();
 
                 // Verifica a rede e solicita a mudança se necessário
                 const network = await ethersProvider.getNetwork();
+                
                 if (network.chainId.toString() !== "137") { // 137 é o ID da Polygon Mainnet
                     statusEl.textContent = "Rede errada. Solicitando mudança para Polygon...";
                     await switchNetwork(POLYGON_CHAIN_ID);
+                    
+                    // ***** CORREÇÃO PRINCIPAL *****
+                    // Após a mudança, precisamos recriar o provider e o signer
+                    // para que eles apontem para a nova rede (Polygon).
+                    ethersProvider = new ethers.BrowserProvider(window.ethereum);
+                    signer = await ethersProvider.getSigner();
                 }
                 
-                // Atualiza a UI após conectar
+                // Atualiza a UI após conectar (agora com o signer correto)
                 connectButton.style.display = 'none';
                 donationUI.style.display = 'block';
                 const userAddress = await signer.getAddress();
@@ -280,8 +287,11 @@
             try {
                 // Converte USD -> MATIC
                 const maticAmount = usdValue / maticPriceUsd;
+                
+                // ***** OTIMIZAÇÃO *****
                 // Converte MATIC -> Wei (a menor unidade, como centavos)
-                const amountInWei = ethers.parseUnits(maticAmount.toFixed(18), 18); // .toFixed(18) evita erros de precisão
+                // Usar .toString() é mais seguro que .toFixed() para evitar erros de ponto flutuante
+                const amountInWei = ethers.parseUnits(maticAmount.toString(), 18); 
 
                 statusEl.textContent = `Enviando ${maticAmount.toFixed(5)} MATIC (≈$${usdValue})... Aprove a transação na sua carteira.`;
 
