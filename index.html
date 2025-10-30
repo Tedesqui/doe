@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Página de Doação Cripto</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.1/ethers.umd.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .donation-box {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 30px 40px;
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+
+        .donation-box h1 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #5a4fcf; /* Cor roxa da Polygon */
+        }
+
+        .donation-box p {
+            font-size: 0.95em;
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        #connectButton {
+            background-color: #5a4fcf;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+
+        #connectButton:hover {
+            background-color: #4a3fbf;
+        }
+
+        #donationUI {
+            display: none; /* Oculto até a carteira conectar */
+        }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .preset-button {
+            background-color: #f0edff;
+            color: #5a4fcf;
+            border: 2px solid #dcd6ff;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .preset-button:hover {
+            background-color: #dcd6ff;
+            border-color: #5a4fcf;
+        }
+
+        .custom-donation {
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        
+        .custom-donation input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .custom-button {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+
+        .custom-button:hover {
+            background-color: #5a6268;
+        }
+
+        #status {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 20px;
+            word-wrap: break-word;
+        }
+
+        #price-info {
+            font-size: 0.8em;
+            color: #999;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="donation-box">
+        <h1>Doe para o Projeto</h1>
+        <p>Sua doação ajuda a manter este projeto vivo. Conecte sua carteira na rede Polygon para doar.</p>
+        <div id="price-info">Carregando preço do MATIC...</div>
+
+        <button id="connectButton">Conectar Carteira</button>
+
+        <div id="donationUI">
+            <p>Selecione um valor (em USD) para doar:</p>
+            <div class="preset-buttons">
+                <button class="preset-button" data-usd="10">$10</button>
+                <button class="preset-button" data-usd="20">$20</button>
+                <button class="preset-button" data-usd="50">$50</button>
+                <button class="preset-button" data-usd="100">$100</button>
+            </div>
+
+            <div class="custom-donation">
+                <p>Ou escolha um valor personalizado (USD):</p>
+                <input type="number" id="customAmount" placeholder="Ex: 5.00" min="1">
+                <button class="custom-button" id="customButton">Doar Valor Personalizado</button>
+            </div>
+        </div>
+
+        <div id="status">Por favor, conecte sua carteira.</div>
+    </div>
+
+    <script>
+        // --- CONFIGURAÇÃO ---
+        const YOUR_WALLET_ADDRESS = "0x359a2bA8233F59fda1cBDdFDC537dc90D145882b";
+        const POLYGON_CHAIN_ID = "0x89"; // 137 em hexadecimal
+
+        // --- VARIÁVEIS GLOBAIS ---
+        let ethersProvider;
+        let signer;
+        let maticPriceUsd;
+
+        // --- ELEMENTOS DO DOM ---
+        const connectButton = document.getElementById('connectButton');
+        const donationUI = document.getElementById('donationUI');
+        const statusEl = document.getElementById('status');
+        const priceInfoEl = document.getElementById('price-info');
+        const customAmountEl = document.getElementById('customAmount');
+        const customButton = document.getElementById('customButton');
+
+        /**
+         * 1. Inicializa o aplicativo ao carregar a página
+         */
+        window.addEventListener('load', async () => {
+            await fetchMaticPrice();
+            connectButton.addEventListener('click', connectWallet);
+            
+            // Adiciona eventos aos botões predefinidos
+            document.querySelectorAll('.preset-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const usdValue = parseFloat(button.dataset.usd);
+                    startDonation(usdValue);
+                });
+            });
+
+            // Adiciona evento ao botão personalizado
+            customButton.addEventListener('click', () => {
+                const usdValue = parseFloat(customAmountEl.value);
+                if (usdValue > 0) {
+                    startDonation(usdValue);
+                } else {
+                    statusEl.textContent = "Por favor, insira um valor válido em USD.";
+                }
+            });
+        });
+
+        /**
+         * 2. Busca o preço atual do MATIC/USD na CoinGecko
+         */
+        async function fetchMaticPrice() {
+            try {
+                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=usd');
+                if (!response.ok) throw new Error('Falha ao buscar preço da rede.');
+                
+                const data = await response.json();
+                maticPriceUsd = data['matic-network'].usd;
+                
+                priceInfoEl.textContent = `1 MATIC ≈ $${maticPriceUsd.toFixed(3)} USD`;
+                statusEl.textContent = "Preço carregado. Por favor, conecte sua carteira.";
+                
+            } catch (error) {
+                console.error("Erro ao buscar preço:", error);
+                priceInfoEl.textContent = "Não foi possível carregar o preço do MATIC.";
+                statusEl.textContent = "Erro ao carregar dados. Tente recarregar a página.";
+            }
+        }
+
+        /**
+         * 3. Conecta à carteira do usuário (ex: MetaMask)
+         */
+        async function connectWallet() {
+            if (typeof window.ethereum === 'undefined') {
+                statusEl.innerHTML = 'Carteira não encontrada. Por favor, instale o <a href="https://metamask.io/" target="_blank">MetaMask</a>.';
+                return;
+            }
+
+            try {
+                // Solicita conexão com a carteira
+                ethersProvider = new ethers.BrowserProvider(window.ethereum);
+                signer = await ethersProvider.getSigner();
+
+                // Verifica a rede e solicita a mudança se necessário
+                const network = await ethersProvider.getNetwork();
+                if (network.chainId.toString() !== "137") { // 137 é o ID da Polygon Mainnet
+                    statusEl.textContent = "Rede errada. Solicitando mudança para Polygon...";
+                    await switchNetwork(POLYGON_CHAIN_ID);
+                }
+                
+                // Atualiza a UI após conectar
+                connectButton.style.display = 'none';
+                donationUI.style.display = 'block';
+                const userAddress = await signer.getAddress();
+                statusEl.textContent = `Conectado como: ${userAddress.substring(0, 6)}...${userAddress.substring(userAddress.length - 4)}`;
+                
+            } catch (error) {
+                console.error("Erro ao conectar:", error);
+                statusEl.textContent = `Erro ao conectar: ${error.message}`;
+            }
+        }
+
+        /**
+         * 4. Lida com a lógica da doação
+         */
+        async function startDonation(usdValue) {
+            if (!signer) {
+                statusEl.textContent = "Carteira não está conectada.";
+                return;
+            }
+            if (!maticPriceUsd) {
+                statusEl.textContent = "Preço do MATIC não carregado. Tente novamente.";
+                await fetchMaticPrice();
+                return;
+            }
+
+            try {
+                // Converte USD -> MATIC
+                const maticAmount = usdValue / maticPriceUsd;
+                // Converte MATIC -> Wei (a menor unidade, como centavos)
+                const amountInWei = ethers.parseUnits(maticAmount.toFixed(18), 18); // .toFixed(18) evita erros de precisão
+
+                statusEl.textContent = `Enviando ${maticAmount.toFixed(5)} MATIC (≈$${usdValue})... Aprove a transação na sua carteira.`;
+
+                // Cria e envia a transação
+                const tx = {
+                    to: YOUR_WALLET_ADDRESS,
+                    value: amountInWei
+                };
+
+                const txResponse = await signer.sendTransaction(tx);
+                statusEl.textContent = "Transação enviada! Aguardando confirmação...";
+
+                await txResponse.wait(); // Espera a transação ser confirmada na blockchain
+
+                statusEl.textContent = `Doação de $${usdValue} recebida! Muito obrigado. Hash: ${txResponse.hash.substring(0, 10)}...`;
+
+            } catch (error) {
+                console.error("Erro na doação:", error);
+                if (error.code === 4001) { // 4001 é "User rejected transaction"
+                    statusEl.textContent = "Transação rejeitada pelo usuário.";
+                } else {
+                    statusEl.textContent = `Erro na doação: ${error.message}`;
+                }
+            }
+        }
+
+        /**
+         * 5. Função utilitária para pedir ao usuário para mudar de rede
+         */
+        async function switchNetwork(chainId) {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: chainId }],
+                });
+            } catch (switchError) {
+                // Código 4902 significa que a rede não está no MetaMask
+                if (switchError.code === 4902) {
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: '0x89',
+                                chainName: 'Polygon Mainnet',
+                                nativeCurrency: {
+                                    name: 'MATIC',
+                                    symbol: 'MATIC',
+                                    decimals: 18,
+                                },
+                                rpcUrls: ['https://polygon-rpc.com/'],
+                                blockExplorerUrls: ['https://polygonscan.com/'],
+                            }],
+                        });
+                    } catch (addError) {
+                        console.error("Erro ao adicionar rede:", addError);
+                    }
+                } else {
+                    console.error("Erro ao trocar de rede:", switchError);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
