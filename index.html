@@ -218,6 +218,15 @@
                 if (!response.ok) throw new Error('Falha ao buscar preço da rede.');
                 
                 const data = await response.json();
+                
+                // --- CORREÇÃO (29/10/2025) ---
+                // Verifica se a estrutura de dados esperada realmente existe
+                // Isso previne o erro 'Cannot read properties of undefined (reading 'toFixed')'
+                if (!data || !data['matic-network'] || !data['matic-network'].usd) {
+                    throw new Error("Resposta da API (CoinGecko) inválida ou incompleta.");
+                }
+                
+                // Se passou na verificação, o código continua seguro
                 maticPriceUsd = data['matic-network'].usd;
                 
                 priceInfoEl.textContent = `1 MATIC ≈ $${maticPriceUsd.toFixed(3)} USD`;
@@ -226,9 +235,11 @@
             } catch (error) {
                 console.error("Erro ao buscar preço:", error);
                 priceInfoEl.textContent = "Não foi possível carregar o preço do MATIC.";
-                statusEl.textContent = "Erro ao carregar dados. Tente recarregar a página.";
+                // Mostra o erro real para o usuário, o que ajuda a depurar
+                statusEl.textContent = `Erro ao carregar dados: ${error.message}. Tente recarregar.`;
             }
         }
+
 
         /**
          * 3. Conecta à carteira do usuário (ex: MetaMask)
