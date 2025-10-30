@@ -147,7 +147,7 @@
         <button id="connectButton">Conectar Carteira</button>
 
         <div id="donationUI">
-            <p>Selecione um valor (em USD) para doar:</p>
+            <p>Selecione um valor (EM USD) para doar:</p>
             <div class="preset-buttons">
                 <button class="preset-button" data-usd="10">$10</button>
                 <button class="preset-button" data-usd="20">$20</button>
@@ -214,20 +214,25 @@
          */
         async function fetchMaticPrice() {
             try {
-                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=matic-network&vs_currencies=usd');
+                // --- CORREÇÃO (30/10/2025) ---
+                // O ID correto da API do CoinGecko é 'polygon'
+                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=polygon&vs_currencies=usd');
+                
                 if (!response.ok) throw new Error('Falha ao buscar preço da rede.');
                 
                 const data = await response.json();
-                
-                // --- CORREÇÃO (29/10/2025) ---
-                // Verifica se a estrutura de dados esperada realmente existe
-                // Isso previne o erro 'Cannot read properties of undefined (reading 'toFixed')'
-                if (!data || !data['matic-network'] || !data['matic-network'].usd) {
+
+                // (Opcional) Linha de depuração para ver a resposta da API
+                console.log("Resposta da API CoinGecko:", data); 
+
+                // --- CORREÇÃO (30/10/2025) ---
+                // Verifica a nova chave 'polygon'
+                if (!data || !data['polygon'] || !data['polygon'].usd) {
                     throw new Error("Resposta da API (CoinGecko) inválida ou incompleta.");
                 }
                 
-                // Se passou na verificação, o código continua seguro
-                maticPriceUsd = data['matic-network'].usd;
+                // Pega o preço usando a chave 'polygon'
+                maticPriceUsd = data['polygon'].usd;
                 
                 priceInfoEl.textContent = `1 MATIC ≈ $${maticPriceUsd.toFixed(3)} USD`;
                 statusEl.textContent = "Preço carregado. Por favor, conecte sua carteira.";
@@ -235,7 +240,6 @@
             } catch (error) {
                 console.error("Erro ao buscar preço:", error);
                 priceInfoEl.textContent = "Não foi possível carregar o preço do MATIC.";
-                // Mostra o erro real para o usuário, o que ajuda a depurar
                 statusEl.textContent = `Erro ao carregar dados: ${error.message}. Tente recarregar.`;
             }
         }
@@ -262,7 +266,7 @@
                     statusEl.textContent = "Rede errada. Solicitando mudança para Polygon...";
                     await switchNetwork(POLYGON_CHAIN_ID);
                     
-                    // ***** CORREÇÃO PRINCIPAL *****
+                    // ***** CORREÇÃO (29/10/2025) *****
                     // Após a mudança, precisamos recriar o provider e o signer
                     // para que eles apontem para a nova rede (Polygon).
                     ethersProvider = new ethers.BrowserProvider(window.ethereum);
@@ -299,7 +303,7 @@
                 // Converte USD -> MATIC
                 const maticAmount = usdValue / maticPriceUsd;
                 
-                // ***** OTIMIZAÇÃO *****
+                // ***** OTIMIZAÇÃO (29/10/2025) *****
                 // Converte MATIC -> Wei (a menor unidade, como centavos)
                 // Usar .toString() é mais seguro que .toFixed() para evitar erros de ponto flutuante
                 const amountInWei = ethers.parseUnits(maticAmount.toString(), 18); 
